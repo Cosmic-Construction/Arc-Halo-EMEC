@@ -11,6 +11,10 @@ from typing import Dict, Optional
 from dataclasses import dataclass
 
 
+# Physical constants
+MUTUAL_INDUCTANCE_DIVISOR = 2.0  # For three-phase symmetric windings: M = -L_self/2
+
+
 @dataclass
 class WindingParameters:
     """Physical parameters of winding"""
@@ -87,7 +91,7 @@ class PolyphaseWindingModel:
             for i in range(n):
                 for j in range(n):
                     if i != j:
-                        L[i, j] = -M / 2.0
+                        L[i, j] = -M / MUTUAL_INDUCTANCE_DIVISOR
         else:
             # General polyphase mutual inductance
             M = params.mutual_inductance

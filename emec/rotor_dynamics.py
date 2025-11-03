@@ -10,6 +10,10 @@ from typing import Optional, Callable
 from dataclasses import dataclass
 
 
+# Numerical constants
+VELOCITY_DEADBAND = 0.01  # Deadband [rad/s] for Coulomb friction near zero to avoid numerical issues
+
+
 @dataclass
 class RotorParameters:
     """Physical parameters of rotor"""
@@ -99,7 +103,7 @@ class RotorDynamics:
         T_viscous = self.params.friction_coefficient * omega
         
         # Coulomb friction (sign function with deadband near zero)
-        if abs(omega) > 0.01:  # Deadband to avoid numerical issues
+        if abs(omega) > VELOCITY_DEADBAND:
             T_coulomb = self.params.coulomb_friction * np.sign(omega)
         else:
             T_coulomb = 0.0

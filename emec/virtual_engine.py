@@ -15,6 +15,14 @@ from .rotor_dynamics import RotorDynamics, RotorParameters, RotorState
 from .stator_dynamics import StatorDynamics, StatorParameters, StatorState
 
 
+# Physical and numerical constants
+SLIP_LIMIT_MIN = -0.5  # Minimum slip for numerical stability
+SLIP_LIMIT_MAX = 1.5   # Maximum slip for numerical stability
+ROTOR_CURRENT_SCALE = 0.1  # Scale factor for rotor current calculation stability
+CURRENT_LIMIT_AMPS = 100.0  # Maximum current magnitude [A] for numerical stability
+TORQUE_LIMIT_NM = 100.0     # Maximum torque magnitude [N⋅m] for numerical stability
+
+
 @dataclass
 class EngineParameters:
     """Complete engine parameters"""
@@ -182,19 +190,19 @@ class VirtualEngine:
         
         # 5. Compute rotor current based on slip
         slip = self.rotor.get_slip(self.params.stator_electrical.rated_frequency)
-        slip = np.clip(slip, -0.5, 1.5)  # Reasonable slip range
+        slip = np.clip(slip, SLIP_LIMIT_MIN, SLIP_LIMIT_MAX)  # Limit for stability
         
         # Rotor current from slip and flux (simplified)
         # In actual motor: i_r ≈ (s * E_r) / Z_r
         # Where E_r is induced EMF proportional to flux
         if abs(slip) > 0.01:
-            rotor_current = flux_linkages['rotor'] * slip * 0.1  # Scale factor for stability
+            rotor_current = flux_linkages['rotor'] * slip * ROTOR_CURRENT_SCALE
         else:
             rotor_current = rotor_current_init
         
-        # Limit currents
-        stator_current = np.clip(stator_current, -100.0, 100.0)
-        rotor_current = np.clip(rotor_current, -100.0, 100.0)
+        # Limit currents to prevent numerical instability
+        stator_current = np.clip(stator_current, -CURRENT_LIMIT_AMPS, CURRENT_LIMIT_AMPS)
+        rotor_current = np.clip(rotor_current, -CURRENT_LIMIT_AMPS, CURRENT_LIMIT_AMPS)
         
         # 6. Update flux with actual currents
         flux_linkages = self.winding_model.compute_flux_linkage(
@@ -217,8 +225,8 @@ class VirtualEngine:
             rotor_current,
             self.params.rotor_mechanical.pole_pairs
         )
-        # Realistic torque limit based on motor size
-        T_em = np.clip(T_em_raw, -100.0, 100.0)
+        # Apply realistic torque limit based on motor size
+        T_em = np.clip(T_em_raw, -TORQUE_LIMIT_NM, TORQUE_LIMIT_NM)
         
         # 9. Solve rotor dynamics
         rotor_state = self.rotor.solve_dynamics(T_em, dt)
