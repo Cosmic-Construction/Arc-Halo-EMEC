@@ -1001,26 +1001,26 @@ flowchart TD
 ### 6.1 Core Equations Reference
 
 **Maxwell's Equations:**
-- Faraday's Law: ∇×E = -∂B/∂t
-- Ampere's Law: ∇×H = J + ∂D/∂t  
-- Gauss (E): ∇·D = ρ
-- Gauss (B): ∇·B = 0
+- Faraday's Law: ∇ × E = -∂B/∂t
+- Ampere's Law: ∇ × H = J + ∂D/∂t  
+- Gauss (E): ∇ · D = ρ
+- Gauss (B): ∇ · B = 0
 
 **Electromagnetic Induction:**
-- Flux linkage: λ = L·I
+- Flux linkage: λ = L · I
 - Induced EMF: v = -dλ/dt
-- Torque: T = (3/2)p(λ_d·i_q - λ_q·i_d)
+- Torque: T = (3/2) · p · (λ_d · i_q - λ_q · i_d)
 
 **Mechanical Dynamics:**
-- Newton's 2nd law: J·dω/dt = T_em - T_load - B·ω
+- Newton's 2nd law: J · dω/dt = T_em - T_load - B · ω
 
 **Power Relations:**
-- Electrical: P_e = V·I·cos(φ)
-- Mechanical: P_m = T·ω
-- Efficiency: η = P_m/P_e
+- Electrical: P_e = V · I · cos(φ)
+- Mechanical: P_m = T · ω
+- Efficiency: η = P_m / P_e
 
 **Bond Graph:**
-- Power: P = e·f
+- Power: P = e · f
 - Energy: E = ∫P dt
 
 ---
