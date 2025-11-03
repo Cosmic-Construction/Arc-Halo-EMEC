@@ -1,6 +1,6 @@
-# Arc-Halo Cognitive Fusion Reactor
+# Arc-Halo EMEC - Cognitive Fusion & Electromagnetic Energy Conversion
 
-Integrate your application with the Arc-Halo platform. The **Arc-Halo Cognitive Fusion Reactor** is a sophisticated database-backed system for managing LLM transformer models with advanced tensor storage, training state management, and multi-model cognitive fusion capabilities.
+Integrate your application with the Arc-Halo platform. The **Arc-Halo EMEC** system combines sophisticated database-backed LLM transformer model management with advanced electromagnetic energy conversion simulation capabilities.
 
 ## 🚀 Features
 
@@ -11,6 +11,13 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo Cognitive 
 - **Inference Optimization**: KV-cache and activation caching for high-performance inference
 - **Multi-Model Fusion**: Cognitive fusion reactor for ensemble and hierarchical model orchestration
 
+### ⚡ NEW: Electromagnetic Energy Conversion (EMEC) Simulator
+- **Virtual Engine Model**: Complete electro-mechanical induction motor simulation
+- **Maxwell's Equations Solver**: EM field dynamics for rotating electrical machines
+- **Polyphase Winding Model**: Three-phase induction winding with flux linkage calculations
+- **Rotor & Stator Dynamics**: Coupled mechanical and electrical system simulation
+- **Performance Analysis**: Torque, speed, efficiency, and power metrics
+
 ### Schema Components
 
 1. **Core Tables**: Model registry, transformer layers, and attention mechanisms
@@ -18,20 +25,24 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo Cognitive 
 3. **Training State**: Sessions, metrics, optimizer state, and checkpointing
 4. **Inference & Cache**: Session management, KV-cache, and activation caching
 5. **Cognitive Fusion**: Multi-model reactors with fusion strategies and interaction graphs
+6. **EMEC Module**: Virtual engine simulation for electro-mechanical energy conversion
 
 ## 📦 Quick Start
 
 ### Prerequisites
-- PostgreSQL client (psql)
-- Python 3.8+ (for utilities)
-- Neon database account ([sign up here](https://neon.tech))
+- PostgreSQL client (psql) - for database features
+- Python 3.8+ (for utilities and EMEC simulator)
+- NumPy (for EMEC module)
+- Neon database account ([sign up here](https://neon.tech)) - optional, for database features
 
 ### Setup
 
+#### For Database Features
+
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Cosmic-Construction/Arc-Halo.git
-   cd Arc-Halo
+   git clone https://github.com/Cosmic-Construction/Arc-Halo-EMEC.git
+   cd Arc-Halo-EMEC
    ```
 
 2. **Configure database connection**
@@ -53,9 +64,32 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo Cognitive 
 
 See [db/QUICKSTART.md](db/QUICKSTART.md) for detailed setup instructions.
 
+#### For EMEC Virtual Engine Simulator
+
+1. **Install dependencies**
+   ```bash
+   pip install numpy
+   ```
+
+2. **Run examples**
+   ```bash
+   python -m emec.examples
+   ```
+
+3. **Run tests**
+   ```bash
+   python -m emec.test_emec
+   ```
+
+See [emec/README.md](emec/README.md) for detailed EMEC documentation.
+
 ## 🏗️ Architecture
 
-The Arc-Halo Cognitive Fusion Reactor is built on a comprehensive database schema designed for:
+The Arc-Halo EMEC system provides two complementary capabilities:
+
+### 1. Cognitive Fusion Reactor (Database-Backed LLM Infrastructure)
+
+Built on a comprehensive database schema designed for:
 
 - **Model Architecture Management**: Store and version transformer model configurations
 - **Tensor Operations**: Efficient tensor storage with support for large models (chunking, compression)
@@ -83,12 +117,88 @@ The Arc-Halo Cognitive Fusion Reactor is built on a comprehensive database schem
 └─────────────────────────────────────────────────────────┘
 ```
 
+### 2. EMEC Virtual Engine (Electromagnetic Energy Conversion)
+
+A complete electro-mechanical simulator integrating:
+
+- **EM Field Solver**: Maxwell's equations for rotating machines
+- **Polyphase Winding Model**: Inductances and flux linkages
+- **Rotor Dynamics**: Mechanical motion equations
+- **Stator Dynamics**: Electrical voltage/current equations
+- **Energy Conversion**: Coupled electro-mechanical simulation
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              Virtual Engine (EMEC)                       │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────────┐      ┌──────────────────┐        │
+│  │  EM Field Solver │      │ Polyphase Winding│        │
+│  │  (Maxwell Eqs)   │◄────►│     Model        │        │
+│  └──────────────────┘      └──────────────────┘        │
+│           │                          │                  │
+│           │                          │                  │
+│           ▼                          ▼                  │
+│  ┌──────────────────┐      ┌──────────────────┐        │
+│  │ Rotor Dynamics   │      │ Stator Dynamics  │        │
+│  │ (Mechanics)      │◄────►│  (Electrical)    │        │
+│  └──────────────────┘      └──────────────────┘        │
+│                                                          │
+│                  Torque ◄──► Current                    │
+│                  Speed  ◄──► Voltage                    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
 ## 📚 Documentation
 
+### Database & LLM Infrastructure
 - [Quick Start Guide](db/QUICKSTART.md) - Get up and running quickly
 - [Database README](db/README.md) - Comprehensive database documentation
 - [Migration Guide](db/migrations/MIGRATION_GUIDE.md) - Schema management and migrations
 - [GitHub Actions](.github/workflows/deploy-db-schema.yml) - Automated deployment workflow
+
+### EMEC Virtual Engine Simulator
+- [EMEC README](emec/README.md) - Complete EMEC documentation
+- [Examples](emec/examples.py) - Usage examples and demonstrations
+- [Tests](emec/test_emec.py) - Test suite
+
+## ⚡ EMEC Virtual Engine
+
+### Quick Example
+
+```python
+from emec import VirtualEngine
+
+# Create a virtual induction motor
+engine = VirtualEngine()
+
+# Set load torque
+engine.set_load_torque(lambda t, omega: 10.0)  # 10 N⋅m constant load
+
+# Run simulation
+engine.simulate(duration=1.0, dt=1e-4)
+
+# Get performance metrics
+metrics = engine.get_performance_metrics()
+print(f"Speed: {metrics['final_speed_rpm']:.1f} RPM")
+print(f"Efficiency: {metrics['avg_efficiency']:.1f}%")
+print(f"Torque: {metrics['avg_torque']:.2f} N⋅m")
+
+# Export data for analysis
+data = engine.export_data()
+```
+
+### Features
+- **Maxwell's Equations**: Complete EM field solver
+- **Park Transformation**: abc ↔ dq0 reference frames
+- **Flux Linkages**: Position-dependent mutual inductances
+- **Torque Computation**: Electromagnetic torque calculation
+- **Mechanical Dynamics**: Rotor acceleration with friction
+- **Three-Phase Supply**: Balanced voltage generation
+- **Performance Metrics**: Efficiency, power, speed, torque analysis
+
+See [emec/README.md](emec/README.md) for detailed documentation.
 
 ## 🔧 Database Schema
 
@@ -141,7 +251,7 @@ Configure `NEON_DATABASE_URL` secret in your repository settings.
 
 ## 🛠️ Development
 
-### Python Utilities
+### Database - Python Utilities
 
 ```python
 from db.scripts.db_utils import NeonDBConnection, ModelRepository
@@ -156,6 +266,39 @@ model_id = model_repo.create_model(
     architecture_config={"num_layers": 12, "hidden_size": 768},
     version="1.0.0"
 )
+```
+
+### EMEC - Virtual Engine Development
+
+```python
+from emec import (
+    VirtualEngine,
+    EngineParameters,
+    EMFieldSolver,
+    PolyphaseWindingModel,
+    RotorDynamics,
+    StatorDynamics
+)
+
+# Create custom engine parameters
+params = EngineParameters.create_default(rated_power=10000.0)
+params.stator_electrical.rated_voltage = 690.0
+
+# Create engine
+engine = VirtualEngine(params)
+
+# Set custom load torque function
+def ramp_load(t, omega):
+    return 5.0 + 10.0 * min(t / 0.5, 1.0)
+
+engine.set_load_torque(ramp_load)
+
+# Simulate
+engine.simulate(duration=2.0)
+
+# Analyze
+metrics = engine.get_performance_metrics()
+data = engine.export_data()
 ```
 
 ### Database Views
@@ -173,19 +316,28 @@ SELECT * FROM v_reactor_status WHERE status = 'active';
 
 ## 📊 Use Cases
 
+### Database & LLM Infrastructure
 - **LLM Model Management**: Version control for transformer models
 - **Training Infrastructure**: Complete training lifecycle tracking
 - **Inference Optimization**: Production-ready caching strategies
 - **Model Ensembles**: Cognitive fusion for multi-model systems
 - **Research Platform**: Experiment tracking and reproducibility
 
+### EMEC Virtual Engine
+- **Motor Design & Analysis**: Performance prediction and optimization
+- **Control System Development**: Test controllers before hardware implementation
+- **Educational Demonstrations**: Teaching electromagnetic principles
+- **Energy Conversion Studies**: Efficiency analysis and optimization
+- **Transient Analysis**: Startup, load changes, fault conditions
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these guidelines:
-1. Review the [Migration Guide](db/migrations/MIGRATION_GUIDE.md) for schema changes
-2. Test changes locally before submitting PRs
+1. Review the [Migration Guide](db/migrations/MIGRATION_GUIDE.md) for database schema changes
+2. Run tests locally before submitting PRs (`python -m emec.test_emec` for EMEC)
 3. Ensure GitHub Actions pass
 4. Document new features
+5. Follow existing code style
 
 ## 📝 License
 
@@ -193,10 +345,16 @@ This project is part of the Arc-Halo ecosystem.
 
 ## 🔗 Links
 
+### Database & Infrastructure
 - [Neon Database](https://neon.tech) - Serverless PostgreSQL
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [pgvector Extension](https://github.com/pgvector/pgvector) - Vector similarity search
 
+### Electromagnetic Theory
+- [Maxwell's Equations](https://en.wikipedia.org/wiki/Maxwell%27s_equations)
+- [Induction Motor Theory](https://en.wikipedia.org/wiki/Induction_motor)
+- [Park Transformation](https://en.wikipedia.org/wiki/Direct-quadrature-zero_transformation)
+
 ---
 
-**Arc-Halo Cognitive Fusion Reactor** - Building the future of AI model orchestration 🧠⚡
+**Arc-Halo EMEC** - Bridging AI model orchestration with electromagnetic energy conversion 🧠⚡🔄
