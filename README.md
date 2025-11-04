@@ -152,6 +152,14 @@ A complete electro-mechanical simulator integrating:
 
 ## 📚 Documentation
 
+### Technical Architecture
+- [**Technical Architecture Specification**](TECHNICAL_ARCHITECTURE.md) - **Comprehensive technical documentation with:**
+  - Cross-section diagrams of rotor/stator EM field interaction
+  - Complete Maxwell's equations and mathematical formulations
+  - Mermaid architecture and data flow diagrams
+  - Formal Z++ specifications for all system components
+  - Performance specifications and safety properties
+
 ### Database & LLM Infrastructure
 - [Quick Start Guide](db/QUICKSTART.md) - Get up and running quickly
 - [Database README](db/README.md) - Comprehensive database documentation
@@ -160,6 +168,7 @@ A complete electro-mechanical simulator integrating:
 
 ### EMEC Virtual Engine Simulator
 - [EMEC README](emec/README.md) - Complete EMEC documentation
+- [Bond Graph Guide](emec/BOND_GRAPH_GUIDE.md) - Bond graph theory and neurological analogy
 - [Examples](emec/examples.py) - Usage examples and demonstrations
 - [Tests](emec/test_emec.py) - Test suite
 
