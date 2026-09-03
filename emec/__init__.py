@@ -9,6 +9,7 @@ New Features:
 - Bond Graph Generalization Framework
 - Domain-agnostic energy modeling
 - Neurological analogy for EM energy conversion
+- Virtual hardware device layer (register map, lifecycle, faults, telemetry)
 """
 
 from .em_field_solver import EMFieldSolver
@@ -45,8 +46,25 @@ from .neurological_analogy import (
     PsychophysicalCoupling,
     NeurologicalDomain
 )
+from .device import (
+    VirtualHardwareDevice,
+    DeviceState,
+    Register,
+    RegisterInfo,
+    REGISTER_MAP,
+    Access,
+    FaultCode,
+    FaultEvent,
+    FaultManager,
+    ProtectionLimits,
+    TelemetryRecorder,
+    TELEMETRY_FIELDS,
+    RegisterAccessError,
+    RegisterValueError,
+    InvalidStateError,
+)
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __all__ = [
     # Core EMEC components
     'EMFieldSolver',
@@ -83,5 +101,21 @@ __all__ = [
     'AffectiveFieldParameters',
     'BehavioralParameters',
     'PsychophysicalCoupling',
-    'NeurologicalDomain'
+    'NeurologicalDomain',
+    # Virtual Hardware Device
+    'VirtualHardwareDevice',
+    'DeviceState',
+    'Register',
+    'RegisterInfo',
+    'REGISTER_MAP',
+    'Access',
+    'FaultCode',
+    'FaultEvent',
+    'FaultManager',
+    'ProtectionLimits',
+    'TelemetryRecorder',
+    'TELEMETRY_FIELDS',
+    'RegisterAccessError',
+    'RegisterValueError',
+    'InvalidStateError'
 ]
