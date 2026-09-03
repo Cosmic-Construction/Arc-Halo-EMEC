@@ -11,12 +11,19 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo EMEC** sys
 - **Inference Optimization**: KV-cache and activation caching for high-performance inference
 - **Multi-Model Fusion**: Cognitive fusion reactor for ensemble and hierarchical model orchestration
 
-### ⚡ NEW: Electromagnetic Energy Conversion (EMEC) Simulator
+### ⚡ Electromagnetic Energy Conversion (EMEC) Simulator
 - **Virtual Engine Model**: Complete electro-mechanical induction motor simulation
 - **Maxwell's Equations Solver**: EM field dynamics for rotating electrical machines
 - **Polyphase Winding Model**: Three-phase induction winding with flux linkage calculations
 - **Rotor & Stator Dynamics**: Coupled mechanical and electrical system simulation
 - **Performance Analysis**: Torque, speed, efficiency, and power metrics
+
+### 🎛️ NEW: Virtual Hardware Device Layer
+- **Register/Control Surface**: Drive-style register map for setpoints, telemetry, and status
+- **Lifecycle State Machine**: OFF → READY → RUNNING ⇄ FAULT with unconditional ESTOP
+- **Protection Faults**: Latching over-current, over-torque, and over-speed trips
+- **Telemetry Streaming**: Ring-buffer recorder with CSV export, REST + SSE server, and CLI
+- **Database Persistence**: Optional storage of device sessions, telemetry, and faults in Neon
 
 ### Schema Components
 
@@ -74,14 +81,17 @@ See [db/QUICKSTART.md](db/QUICKSTART.md) for detailed setup instructions.
 2. **Run examples**
    ```bash
    python -m emec.examples
+   python -m emec.examples_device  # virtual hardware device examples
    ```
 
 3. **Run tests**
    ```bash
    python -m emec.test_emec
+   python -m emec.test_device    # virtual hardware device tests
    ```
 
-See [emec/README.md](emec/README.md) for detailed EMEC documentation.
+See [emec/README.md](emec/README.md) for detailed EMEC documentation and
+[emec/DEVICE_GUIDE.md](emec/DEVICE_GUIDE.md) for the virtual hardware device guide.
 
 ## 🏗️ Architecture
 
@@ -169,6 +179,7 @@ A complete electro-mechanical simulator integrating:
 ### EMEC Virtual Engine Simulator
 - [EMEC README](emec/README.md) - Complete EMEC documentation
 - [Bond Graph Guide](emec/BOND_GRAPH_GUIDE.md) - Bond graph theory and neurological analogy
+- [Device Guide](emec/DEVICE_GUIDE.md) - **Virtual hardware device: register map, lifecycle, faults, HTTP/CLI**
 - [Examples](emec/examples.py) - Usage examples and demonstrations
 - [Tests](emec/test_emec.py) - Test suite
 

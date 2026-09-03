@@ -1,0 +1,49 @@
+name: Test EMEC Module
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'emec/**'
+      - '.github/workflows/test-emec.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'emec/**'
+  workflow_dispatch:
+
+# Restrict default permissions for security
+permissions:
+  contents: read
+
+jobs:
+  test-emec:
+    name: Run EMEC Test Suites
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy
+
+      - name: Run EMEC core tests
+        run: python -m emec.test_emec
+
+      - name: Run bond graph and neurological tests
+        run: python -m emec.test_bond_graph
+
+      - name: Run virtual hardware device tests
+        run: python -m emec.test_device

@@ -87,11 +87,21 @@
 │  └──────────────────────────────────────────────────┘                   │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────┐                   │
+│  │   EMEC Virtual Device Module (06_emec_device)     │                   │
+│  ├──────────────────────────────────────────────────┤                   │
+│  │ • emec_devices             Device Registry       │                   │
+│  │ • emec_device_sessions     Run Session Records   │                   │
+│  │ • emec_telemetry           Time-Series Telemetry │                   │
+│  │ • emec_fault_log           Latched Fault Events  │                   │
+│  └──────────────────────────────────────────────────┘                   │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────┐                   │
 │  │              Database Views & Functions           │                   │
 │  ├──────────────────────────────────────────────────┤                   │
 │  │ • v_model_architecture   Architecture Overview   │                   │
 │  │ • v_training_progress    Training Status         │                   │
 │  │ • v_reactor_status       Reactor Overview        │                   │
+│  │ • v_emec_device_sessions EMEC Session Overview   │                   │
 │  │ • calculate_model_parameters()                   │                   │
 │  │ • get_latest_checkpoint()                        │                   │
 │  └──────────────────────────────────────────────────┘                   │
@@ -135,6 +145,12 @@ DATA FLOW:
                                     → fusion_operations (execute)
                                     → model_interaction_graph
                                     → reactor_metrics
+
+4. EMEC Device Flow:
+   VirtualHardwareDevice → EMEC Device Repository → emec_devices (registry)
+                                                  → emec_device_sessions (runs)
+                                                  → emec_telemetry (samples)
+                                                  → emec_fault_log (trips)
 
 KEY FEATURES:
 ────────────

@@ -1,8 +1,8 @@
 # Arc-Halo EMEC - Electromagnetic Energy Conversion Simulator
 
-**Virtual Engine Model with Rotor & Stator Dynamics + Bond Graph Generalization**
+**Virtual Engine Model with Rotor & Stator Dynamics + Bond Graph Generalization + Virtual Hardware Device**
 
-A comprehensive electro-mechanical energy conversion simulator implementing electromagnetic field equations for polyphase induction machines, with generalized bond graph framework and neurological analogy modeling.
+A comprehensive electro-mechanical energy conversion simulator implementing electromagnetic field equations for polyphase induction machines, with generalized bond graph framework, neurological analogy modeling, and a virtual hardware device layer exposing the engine as a register-driven motor drive.
 
 ## Overview
 
@@ -42,6 +42,14 @@ The EMEC (Electromagnetic Energy Conversion) module provides a complete virtual 
 - **Behavioral Action**: Action rate, habit formation (↔ Mechanical output)
 - **Psychophysical Integration**: Mind-body coupling, behavioral feedback
 - **Energy Analysis**: Mental fatigue, emotional regulation, performance efficiency
+
+**Virtual Hardware Device (NEW in v2.1):**
+- **Register Map**: Drive-style control surface (setpoints, control word, telemetry, status)
+- **Lifecycle State Machine**: OFF → READY → RUNNING ⇄ FAULT, plus unconditional ESTOP
+- **Latching Protection Faults**: Over-current, over-torque, over-speed, e-stop
+- **Telemetry Recorder**: Ring buffer with decimation, snapshot and CSV export
+- **Host APIs**: Stdlib-only REST + SSE server and interactive CLI
+- **Optional Persistence**: Device sessions/telemetry/faults stored in the Arc-Halo database
 
 ### 🎯 Applications
 
@@ -127,6 +135,34 @@ print(f"Efficiency: {analysis['efficiency']:.2f}%")
 print(f"Electrical Input: {analysis['electrical_input_power']:.2f} W")
 print(f"Mechanical Output: {analysis['mechanical_output_power']:.2f} W")
 ```
+
+### Virtual Hardware Device Usage (NEW)
+
+```python
+from emec import VirtualHardwareDevice, Register
+
+# Create the device and energize it
+device = VirtualHardwareDevice()
+device.power_on()
+
+# Write setpoints through the register map
+device.write_register(Register.VOLTAGE_SETPOINT, 400.0)
+device.write_register("LOAD_TORQUE_SETPOINT", 10.0)
+
+# Run the drive
+device.start()
+device.run(1.0)  # simulated seconds
+
+# Read telemetry registers
+print(f"Speed: {device.read_register('SPEED_RPM'):.1f} RPM")
+print(f"Fault: {device.read_register('FAULT_CODE')}")
+device.stop()
+
+# Optional: serve over HTTP/SSE or drive from a CLI
+#   python -m emec.device.server / python -m emec.device.cli
+```
+
+See [DEVICE_GUIDE.md](DEVICE_GUIDE.md) for the full register map, state machine, and fault model.
 
 ### Neurological Analogy Usage (NEW)
 
@@ -328,6 +364,13 @@ python -m emec.examples_neurological
 5. Complete EM ↔ Neurological analogy
 6. Psychophysical efficiency analysis
 
+**`examples_device.py` (NEW):**
+1. Startup transient driven through the register map
+2. Load-step response via setpoint changes
+3. Fault trip and recovery (protection limits)
+4. Telemetry capture and CSV export
+5. HTTP/SSE server queried in-process
+
 ## Testing
 
 Run the test suite:
@@ -339,14 +382,18 @@ python -m emec.test_emec
 # Bond graph and neurological tests
 python -m emec.test_bond_graph
 
+# Virtual hardware device tests
+python -m emec.test_device
+
 # All tests
-python -m emec.test_emec && python -m emec.test_bond_graph
+python -m emec.test_emec && python -m emec.test_bond_graph && python -m emec.test_device
 ```
 
 **Test Coverage:**
 - 8 original EMEC tests (EM field, winding, rotor, stator, engine)
 - 18 bond graph and neurological tests
-- **26 total tests, all passing**
+- 13 virtual hardware device tests (lifecycle, registers, faults, telemetry, server, CLI, repository)
+- **39 total tests, all passing**
 
 Tests cover:
 - EM field solver accuracy
@@ -457,8 +504,9 @@ Tests cover:
 
 - [Main EMEC README](README.md) - This file
 - [Bond Graph Guide](BOND_GRAPH_GUIDE.md) - Comprehensive guide to bond graph framework and neurological analogy
+- [Device Guide](DEVICE_GUIDE.md) - Virtual hardware device register map, state machine, and fault model
 - [Project Overview](../README.md) - Overall Arc-Halo EMEC project
-- [Examples](examples.py, examples_bond_graph.py, examples_neurological.py) - Usage examples
+- [Examples](examples.py, examples_bond_graph.py, examples_neurological.py, examples_device.py) - Usage examples
 
 ## Integration with Arc-Halo
 

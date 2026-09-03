@@ -26,6 +26,9 @@ SET timezone = 'UTC';
 \echo 'Creating cognitive fusion schema...'
 \i db/schema/05_cognitive_fusion.sql
 
+\echo 'Creating EMEC virtual device schema...'
+\i db/schema/06_emec_device.sql
+
 -- Add foreign key constraints that span multiple schema files
 \echo 'Adding cross-schema foreign keys...'
 
@@ -201,6 +204,12 @@ CREATE TRIGGER update_model_interaction_graph_updated_at BEFORE UPDATE ON model_
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_cognitive_state_updated_at BEFORE UPDATE ON cognitive_state
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_emec_devices_updated_at BEFORE UPDATE ON emec_devices
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_emec_device_sessions_updated_at BEFORE UPDATE ON emec_device_sessions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 \echo 'Arc-Halo Cognitive Fusion Reactor Database Schema Deployment Complete!'

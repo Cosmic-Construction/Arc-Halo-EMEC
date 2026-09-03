@@ -1025,10 +1025,133 @@ flowchart TD
 
 ---
 
+## 7. Virtual Hardware Device Layer (v2.1)
+
+### 7.1 Device Data Flow
+
+```mermaid
+flowchart TB
+    subgraph Host["Host Clients"]
+        CLI[emec.device.cli]
+        HTTP[REST / SSE Server<br/>emec.device.server]
+    end
+
+    subgraph Driver["VirtualHardwareDevice"]
+        REG[Register Map<br/>registers.py]
+        FSM[Lifecycle FSM<br/>OFF→READY→RUNNING⇄FAULT, ESTOP]
+        FLT[FaultManager<br/>latching protections]
+        TEL[TelemetryRecorder<br/>ring buffer + CSV]
+    end
+
+    subgraph Core["Simulation Core (unmodified)"]
+        ENG[VirtualEngine]
+        EMF[EMFieldSolver]
+        ROT[RotorDynamics]
+        STA[StatorDynamics]
+    end
+
+    subgraph DB["Persistence (optional)"]
+        REPO[EMECDeviceRepository]
+        TBL[(emec_devices<br/>emec_device_sessions<br/>emec_telemetry<br/>emec_fault_log)]
+    end
+
+    CLI --> REG
+    HTTP --> REG
+    REG --> FSM
+    FSM --> FLT
+    FSM --> TEL
+    FSM --> ENG
+    ENG --> EMF
+    ENG --> ROT
+    ENG --> STA
+    TEL --> REPO
+    FLT --> REPO
+    REPO --> TBL
+```
+
+### 7.2 Device Lifecycle Specification (Z++)
+
+```z++
+┌─ DeviceLifecycle ─────────────────────────────────────────────┐
+│                                                                │
+│  DeviceState ::= OFF | READY | RUNNING | FAULT | ESTOP        │
+│                                                                │
+│  state : DeviceState                                          │
+│  faults : ℙ FaultCode                                         │
+│  setpoints : Register ⇸ ℝ                                     │
+│                                                                │
+│  /* State invariants */                                        │
+│  state = RUNNING ⇒ faults = ∅                                │
+│  state = FAULT ⇔ faults ≠ ∅                                  │
+│  state = ESTOP ⇒ ESTOP_fault ∈ faults                        │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ StartOperation ──────────────────────────────────────────────┐
+│  ΔDeviceLifecycle                                             │
+│                                                                │
+│  state = READY                                                │
+│  state' = RUNNING                                             │
+│  faults' = faults                                             │
+│                                                                │
+│  /* Starting from OFF, FAULT, or ESTOP is undefined           │
+│     and rejected by the driver */                             │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ FaultTrip ───────────────────────────────────────────────────┐
+│  ΔDeviceLifecycle                                             │
+│                                                                │
+│  state = RUNNING                                              │
+│  ∃ limit : ProtectionLimits • Violated(limit, measurements)  │
+│  faults' = faults ∪ {TrippedFault}                           │
+│  state' = FAULT                                               │
+│                                                                │
+│  /* Simulation freezes while faulted; fault latches */        │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ FaultReset ──────────────────────────────────────────────────┐
+│  ΔDeviceLifecycle                                             │
+│                                                                │
+│  state = FAULT                                                │
+│  ¬∃ limit : ProtectionLimits • Violated(limit, measurements) │
+│  faults' = ∅                                                  │
+│  state' = READY                                               │
+│                                                                │
+│  /* Reset refused while the trip condition persists */        │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ EmergencyStop ───────────────────────────────────────────────┐
+│  ΔDeviceLifecycle                                             │
+│                                                                │
+│  state ≠ OFF                                                  │
+│  faults' = faults ∪ {ESTOP}                                  │
+│  state' = ESTOP                                               │
+│                                                                │
+│  /* Unconditional: valid from every powered state */          │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### 7.3 Device Safety Properties
+
+- **Protection latching:** a tripped fault persists until explicitly cleared
+  with no active trip condition (mirrors IEC 61800 drive behavior).
+- **Start inhibit:** `start()` is only valid from READY; FAULT and ESTOP
+  require explicit operator action.
+- **Fail-safe persistence:** database failures degrade to in-memory-only
+  operation and never interrupt the device loop.
+- **Interface isolation:** the HTTP server binds localhost by default;
+  exposing it on a network is an explicit operator choice.
+
+---
+
 ## Document Control
 
-**Version:** 1.0.0  
-**Date:** 2025-11-03  
+**Version:** 1.1.0  
+**Date:** 2026-09-03  
 **Status:** Complete  
 **Classification:** Technical Specification  
 
