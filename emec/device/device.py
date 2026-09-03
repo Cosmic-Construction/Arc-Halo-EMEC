@@ -123,6 +123,8 @@ class VirtualHardwareDevice:
         if self.state == DeviceState.READY:
             self.state = DeviceState.RUNNING
             self._begin_session()
+        elif self.state == DeviceState.OFF:
+            raise InvalidStateError("Power on the device before starting")
         elif self.state in (DeviceState.FAULT, DeviceState.ESTOP):
             raise InvalidStateError(
                 f"Cannot start from {self.state.value}; clear the condition first"
@@ -205,12 +207,12 @@ class VirtualHardwareDevice:
         value = self._validate_value(register, value)
 
         if register == Register.CONTROL_WORD:
-            self._control_word = value
-            if value & CTRL_BIT_RESET:
+            self._control_word = int(value)
+            if self._control_word & CTRL_BIT_RESET:
                 self.reset()
-            elif value & CTRL_BIT_STOP:
+            elif self._control_word & CTRL_BIT_STOP:
                 self.stop()
-            elif value & CTRL_BIT_START:
+            elif self._control_word & CTRL_BIT_START:
                 self.start()
         elif register == Register.FAULT_RESET:
             if value:

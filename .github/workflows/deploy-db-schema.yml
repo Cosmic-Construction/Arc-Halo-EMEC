@@ -76,6 +76,7 @@ jobs:
             "db/schema/03_training_state.sql"
             "db/schema/04_inference_cache.sql"
             "db/schema/05_cognitive_fusion.sql"
+            "db/schema/06_emec_device.sql"
           )
           
           for file in "${expected_files[@]}"; do
