@@ -1123,6 +1123,17 @@ flowchart TB
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
 
+┌─ SetpointInterlock ───────────────────────────────────────────┐
+│  ΔDeviceLifecycle                                             │
+│                                                                │
+│  state = RUNNING                                              │
+│  WouldTrip(setpoint, ProtectionLimits)                        │
+│                                                                │
+│  /* Write is rejected; setpoints and state are unchanged.     │
+│     Preloading a trip setpoint is defined only from READY. */ │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
 ┌─ EmergencyStop ───────────────────────────────────────────────┐
 │  ΔDeviceLifecycle                                             │
 │                                                                │
@@ -1141,6 +1152,11 @@ flowchart TB
   with no active trip condition (mirrors IEC 61800 drive behavior).
 - **Start inhibit:** `start()` is only valid from READY; FAULT and ESTOP
   require explicit operator action.
+- **Running interlock:** while RUNNING, load-torque and frequency setpoints
+  that would trip over-torque or over-speed are rejected.
+- **Efficiency anomaly:** non-finite, negative, or over-unity efficiency
+  latches `EFFICIENCY_ANOMALY` (code 5). Current and torque trip thresholds
+  reuse `CURRENT_LIMIT_AMPS` and `TORQUE_LIMIT_NM` from the physics core.
 - **Fail-safe persistence:** database failures degrade to in-memory-only
   operation and never interrupt the device loop.
 - **Interface isolation:** the HTTP server binds localhost by default;

@@ -87,7 +87,8 @@ SELECT
     s.start_time,
     s.end_time,
     COUNT(t.telemetry_id) AS telemetry_samples,
-    COUNT(f.fault_id) AS fault_count
+    COUNT(f.fault_id) AS fault_count,
+    EXTRACT(EPOCH FROM (s.end_time - s.start_time)) AS duration_s
 FROM emec_device_sessions s
 JOIN emec_devices d ON s.device_id = d.device_id
 LEFT JOIN emec_telemetry t ON t.session_id = s.session_id
@@ -96,4 +97,8 @@ GROUP BY s.session_id, d.device_name, s.status, s.setpoints, s.metrics,
          s.start_time, s.end_time
 ORDER BY s.start_time DESC;
 
-COMMENT ON VIEW v_emec_device_sessions IS 'Overview of EMEC device run sessions with telemetry and fault counts';
+COMMENT ON TABLE emec_devices IS 'Registry of EMEC virtual hardware device instances';
+COMMENT ON TABLE emec_device_sessions IS 'Run records: setpoints, duration, and performance metrics';
+COMMENT ON TABLE emec_telemetry IS 'Time-series operating-point samples for a device session';
+COMMENT ON TABLE emec_fault_log IS 'Latched protection and e-stop events for a device session';
+COMMENT ON VIEW v_emec_device_sessions IS 'Overview of EMEC device run sessions with duration, telemetry, and fault counts';

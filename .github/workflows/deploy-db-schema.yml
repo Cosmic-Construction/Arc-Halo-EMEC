@@ -144,6 +144,7 @@ jobs:
           psql -h localhost -U test_user -d arc_halo_test -f db/schema/03_training_state.sql
           psql -h localhost -U test_user -d arc_halo_test -f db/schema/04_inference_cache.sql
           psql -h localhost -U test_user -d arc_halo_test -f db/schema/05_cognitive_fusion.sql
+          psql -h localhost -U test_user -d arc_halo_test -f db/schema/06_emec_device.sql
           
           echo "✓ All schema files applied successfully"
       
@@ -171,6 +172,10 @@ jobs:
             "cognitive_fusion_reactors"
             "reactor_models"
             "fusion_operations"
+            "emec_devices"
+            "emec_device_sessions"
+            "emec_telemetry"
+            "emec_fault_log"
           )
           
           for table in "${tables[@]}"; do
@@ -258,6 +263,9 @@ jobs:
           
           echo "Applying cognitive fusion schema..."
           psql "$NEON_DATABASE_URL" -f db/schema/05_cognitive_fusion.sql
+
+          echo "Applying EMEC virtual device schema..."
+          psql "$NEON_DATABASE_URL" -f db/schema/06_emec_device.sql
           
           echo "✓ Schema deployment completed successfully"
       
@@ -295,6 +303,7 @@ jobs:
           echo "- ✅ Training State (Sessions, Metrics, Checkpoints)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Inference & Cache (Sessions, KV Cache, Activations)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Cognitive Fusion (Reactors, Operations, State)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ EMEC Virtual Device (Registry, Sessions, Telemetry, Fault Log)" >> $GITHUB_STEP_SUMMARY
 
   notify:
     name: Notify Deployment Status

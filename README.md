@@ -21,8 +21,8 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo EMEC** sys
 ### 🎛️ NEW: Virtual Hardware Device Layer
 - **Register/Control Surface**: Drive-style register map for setpoints, telemetry, and status
 - **Lifecycle State Machine**: OFF → READY → RUNNING ⇄ FAULT with unconditional ESTOP
-- **Protection Faults**: Latching over-current, over-torque, and over-speed trips
-- **Telemetry Streaming**: Ring-buffer recorder with CSV export, REST + SSE server, and CLI
+- **Protection Faults**: Latching over-current, over-torque, over-speed, and efficiency-anomaly trips
+- **Telemetry Streaming**: Ring-buffer recorder with CSV export, REST + WebSocket/SSE server, and CLI
 - **Database Persistence**: Optional storage of device sessions, telemetry, and faults in Neon
 
 ### Schema Components

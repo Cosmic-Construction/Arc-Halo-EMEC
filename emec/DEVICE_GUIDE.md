@@ -26,7 +26,7 @@ The physics core is completely unmodified.
 ```
 ┌────────────── Host Client (CLI / HTTP / SSE / DB dashboard) ─────────────┐
 │                            Device API Layer                               │
-│  emec/device/server.py (REST + SSE)   emec/device/cli.py (interactive)    │
+│  emec/device/server.py (REST + WS/SSE) emec/device/cli.py (interactive)   │
 ├───────────────────────────────────────────────────────────────────────────┤
 │                        Device Driver Layer                                │
 │  emec/device/device.py     VirtualHardwareDevice                          │
@@ -65,7 +65,7 @@ The physics core is completely unmodified.
 
 | Method | From | To | Notes |
 |--------|------|----|-------|
-| `power_on()` | OFF, ESTOP | READY | Applies setpoints to engine supply/load |
+| `power_on()` | OFF, ESTOP | READY | Applies setpoints; clears a latched ESTOP |
 | `start()` | READY | RUNNING | Raises `InvalidStateError` from OFF/FAULT/ESTOP |
 | `stop()` | RUNNING | READY | Retains telemetry for readout |
 | `power_off()` | READY, FAULT | OFF | Raises while RUNNING |
@@ -100,6 +100,11 @@ Writes are validated for access mode, type, and range
 (`RegisterAccessError`, `RegisterValueError`). Setpoints rebind the engine's
 supply and load callables — the physics core is never modified.
 
+While `RUNNING`, a setpoint that would trip a protection is rejected
+(`InvalidStateError`): load torque above the torque limit, and a supply
+frequency whose synchronous speed exceeds the over-speed limit. Those
+setpoints can still be preloaded in `READY` before `start()`.
+
 ## Fault Model
 
 Faults mirror real drive semantics: a trip latches the fault, moves the
@@ -110,10 +115,11 @@ condition has disappeared.
 | Code | Fault | Trip condition (defaults) |
 |------|-------|---------------------------|
 | 0 | `NONE` | — |
-| 1 | `OVER_CURRENT` | max \|phase current\| > 100 A |
-| 2 | `OVER_TORQUE` | \|T_em\| > 100 N·m |
+| 1 | `OVER_CURRENT` | max \|phase current\| > `CURRENT_LIMIT_AMPS` (100 A) |
+| 2 | `OVER_TORQUE` | \|T_em\| > `TORQUE_LIMIT_NM` (100 N·m) |
 | 3 | `OVER_SPEED` | \|speed\| > 1.2 × rated speed |
 | 4 | `ESTOP` | Emergency stop engaged |
+| 5 | `EFFICIENCY_ANOMALY` | non-finite, negative, or over-unity efficiency |
 
 Limits are configurable via `ProtectionLimits`:
 
@@ -178,9 +184,14 @@ serve(device, host='127.0.0.1', port=8080)           # blocking
 | `/registers/{name}` | GET | Single register value |
 | `/registers/{name}` | POST | Write register, body `{"value": x}` |
 | `/telemetry?last_n=N` | GET | Telemetry samples |
-| `/stream?rate_hz=R` | GET | SSE telemetry stream (≤ 50 events/s) |
+| `/stream?rate_hz=R` | GET | WS upgrade if requested, otherwise SSE (≤ 50 events/s) |
 | `/command/{cmd}` | POST | `power_on` `power_off` `start` `stop` `reset` `estop` |
 | `/state` | GET | Lifecycle state, status word, fault code |
+
+`GET /stream` speaks WebSocket (RFC 6455 text frames) when the request
+includes `Upgrade: websocket` and `Sec-WebSocket-Key`. Otherwise it falls
+back to Server-Sent Events so stdlib HTTP clients keep working. The socket
+is server-push telemetry only; client frames are not executed as commands.
 
 **Security note:** the server binds to localhost by default and has no
 authentication. Only bind to non-local interfaces on trusted networks.
@@ -200,13 +211,17 @@ device> start
 device> run 0.5
 device> get SPEED_RPM
 device> telemetry 5
+device> inject_fault EFFICIENCY_ANOMALY
+device> reset_faults
 device> estop
 ```
 
 ## Database Persistence
 
-When a repository is attached, sessions/telemetry/faults persist to the
-Arc-Halo database (schema `db/schema/06_emec_device.sql`):
+When `NEON_DATABASE_URL` is set, `VirtualHardwareDevice()` attaches the
+repository automatically. Pass `repository=` to override, or leave the
+variable unset for in-memory operation. Connection failures are a no-op.
+Sessions, telemetry, and faults persist to schema `db/schema/06_emec_device.sql`:
 
 ```python
 from emec import VirtualHardwareDevice
@@ -216,8 +231,9 @@ repo = create_repository_from_env()          # uses NEON_DATABASE_URL
 device = VirtualHardwareDevice(repository=repo)
 ```
 
-- A **session** opens on `start()` and closes on `stop()`/fault, storing
-  setpoints, final metrics, and buffered telemetry.
+- A **session** opens on `start()` and closes on `stop()` (`stopped`) or
+  fault (`faulted`), storing setpoints, duration, final metrics, and
+  buffered telemetry.
 - **Faults** are recorded to `emec_fault_log` at trip time.
 - Persistence failures never break device operation (fail-safe no-op).
 - Query runs via the `v_emec_device_sessions` view.
@@ -225,7 +241,7 @@ device = VirtualHardwareDevice(repository=repo)
 ## Testing
 
 ```bash
-python -m emec.test_device    # 13 device tests
+python -m emec.test_device    # 17 device tests
 python -m emec.test_emec      # 8 core physics tests (unmodified)
 python -m emec.test_bond_graph  # 18 bond graph / neurological tests
 ```

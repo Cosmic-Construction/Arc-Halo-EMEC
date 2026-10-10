@@ -1,16 +1,16 @@
 """
 Virtual Hardware Device - HTTP/SSE Server
 
-Stdlib-only host API exposing the device register map over HTTP plus a
-Server-Sent Events (SSE) telemetry stream. No third-party dependencies;
-suitable for embedding and for local dashboards.
+Stdlib-only host API exposing the device register map over HTTP. Telemetry
+is streamed on GET /stream: a WebSocket upgrade (WS /stream) when the client
+requests one, otherwise Server-Sent Events. No third-party dependencies.
 
 Endpoints:
     GET  /registers                 -> all registers with metadata + values
     GET  /registers/{name}          -> single register value
     POST /registers/{name}          -> write register, JSON body {"value": x}
     GET  /telemetry?last_n=N        -> telemetry samples
-    GET  /stream?rate_hz=R          -> SSE telemetry stream (R events/s, max 50)
+    GET  /stream?rate_hz=R          -> WS upgrade, else SSE (R events/s, max 50)
     POST /command/{cmd}             -> power_on|power_off|start|stop|reset|estop
     GET  /state                     -> lifecycle state, status word, fault code
 
@@ -18,8 +18,11 @@ Binds to localhost by default; pass host explicitly to expose on a network
 interface (only do so on trusted networks — there is no authentication).
 """
 
+import base64
+import hashlib
 import json
 import re
+import struct
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -34,10 +37,12 @@ from .device import (
 )
 from .registers import Register, REGISTER_MAP
 
-# Upper bound for SSE stream rate to avoid runaway loops
+# Upper bound for SSE/WebSocket stream rate to avoid runaway loops
 MAX_STREAM_RATE_HZ = 50.0
 # Upper bound for telemetry samples served per request
 MAX_TELEMETRY_SAMPLES = 100000
+# RFC 6455 magic GUID used only to compute Sec-WebSocket-Accept
+_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 _COMMANDS = {
     'power_on': lambda d: d.power_on(),
@@ -152,7 +157,10 @@ class DeviceRequestHandler(BaseHTTPRequestHandler):
         if path == '/stream':
             rate = self._parse_float(query, 'rate_hz', default=10.0)
             rate = max(0.1, min(rate, MAX_STREAM_RATE_HZ))
-            self._handle_stream(rate)
+            if self._websocket_requested():
+                self._handle_websocket(rate)
+            else:
+                self._handle_stream(rate)
             return
 
         self._send_error_json(404, f"Unknown path: {path}")
@@ -195,7 +203,11 @@ class DeviceRequestHandler(BaseHTTPRequestHandler):
 
         self._send_error_json(404, f"Unknown path: {path}")
 
-    # ------------------------- SSE stream -------------------------
+    # ------------------------- telemetry stream -------------------------
+
+    def _websocket_requested(self) -> bool:
+        upgrade = (self.headers.get('Upgrade') or '').lower()
+        return 'websocket' in upgrade
 
     def _handle_stream(self, rate_hz: float):
         self.send_response(200)
@@ -207,18 +219,52 @@ class DeviceRequestHandler(BaseHTTPRequestHandler):
         interval = 1.0 / rate_hz
         try:
             while True:
-                sample = self.device.telemetry.latest()
-                payload = {
-                    'state': self.device.state.value,
-                    'fault_code': self.device.read_register(Register.FAULT_CODE),
-                    'sample': sample,
-                }
-                data = f"data: {json.dumps(payload)}\n\n".encode('utf-8')
+                data = f"data: {json.dumps(self._stream_payload())}\n\n".encode('utf-8')
                 self.wfile.write(data)
                 self.wfile.flush()
                 time.sleep(interval)
         except (BrokenPipeError, ConnectionResetError):
             pass  # Client disconnected
+
+    def _handle_websocket(self, rate_hz: float):
+        """
+        RFC 6455 text-frame telemetry stream (WS /stream).
+
+        Server-push only: client frames are not interpreted as commands.
+        """
+        key = (self.headers.get('Sec-WebSocket-Key') or '').strip()
+        if not key:
+            self._send_error_json(400, "Missing Sec-WebSocket-Key")
+            return
+
+        # RFC 6455 requires SHA-1 for Sec-WebSocket-Accept. This is the
+        # protocol handshake, not a password or integrity hash.
+        accept = base64.b64encode(
+            hashlib.sha1((key + _WS_GUID).encode('ascii')).digest()
+        ).decode('ascii')
+        self.protocol_version = 'HTTP/1.1'
+        self.send_response(101, 'Switching Protocols')
+        self.send_header('Upgrade', 'websocket')
+        self.send_header('Connection', 'Upgrade')
+        self.send_header('Sec-WebSocket-Accept', accept)
+        self.end_headers()
+
+        interval = 1.0 / rate_hz
+        try:
+            while True:
+                payload = json.dumps(self._stream_payload()).encode('utf-8')
+                self.wfile.write(_ws_text_frame(payload))
+                self.wfile.flush()
+                time.sleep(interval)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass  # Client disconnected
+
+    def _stream_payload(self) -> dict:
+        return {
+            'state': self.device.state.value,
+            'fault_code': self.device.read_register(Register.FAULT_CODE),
+            'sample': self.device.telemetry.latest(),
+        }
 
     # ------------------------- parsing -------------------------
 
@@ -235,6 +281,18 @@ class DeviceRequestHandler(BaseHTTPRequestHandler):
             return float(query[key][0])
         except (KeyError, IndexError, ValueError):
             return default
+
+
+def _ws_text_frame(payload: bytes) -> bytes:
+    """Encode an unmasked WebSocket text frame (server-to-client)."""
+    n = len(payload)
+    if n < 126:
+        header = struct.pack('!BB', 0x81, n)
+    elif n < 65536:
+        header = struct.pack('!BBH', 0x81, 126, n)
+    else:
+        header = struct.pack('!BBQ', 0x81, 127, n)
+    return header + payload
 
 
 def create_server(device: VirtualHardwareDevice,

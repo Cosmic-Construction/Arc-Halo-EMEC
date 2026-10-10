@@ -46,9 +46,10 @@ The EMEC (Electromagnetic Energy Conversion) module provides a complete virtual 
 **Virtual Hardware Device (NEW in v2.1):**
 - **Register Map**: Drive-style control surface (setpoints, control word, telemetry, status)
 - **Lifecycle State Machine**: OFF → READY → RUNNING ⇄ FAULT, plus unconditional ESTOP
-- **Latching Protection Faults**: Over-current, over-torque, over-speed, e-stop
+- **Latching Protection Faults**: Over-current, over-torque, over-speed, efficiency anomaly, e-stop
+- **Running interlock**: Setpoints that would trip protections are rejected while RUNNING
 - **Telemetry Recorder**: Ring buffer with decimation, snapshot and CSV export
-- **Host APIs**: Stdlib-only REST + SSE server and interactive CLI
+- **Host APIs**: Stdlib-only REST + WebSocket/SSE server and interactive CLI
 - **Optional Persistence**: Device sessions/telemetry/faults stored in the Arc-Halo database
 
 ### 🎯 Applications
@@ -392,7 +393,7 @@ python -m emec.test_emec && python -m emec.test_bond_graph && python -m emec.tes
 **Test Coverage:**
 - 8 original EMEC tests (EM field, winding, rotor, stator, engine)
 - 18 bond graph and neurological tests
-- 13 virtual hardware device tests (lifecycle, registers, faults, telemetry, server, CLI, repository)
+- 17 virtual hardware device tests (lifecycle, registers, faults, telemetry, server, CLI, repository)
 - **39 total tests, all passing**
 
 Tests cover:
