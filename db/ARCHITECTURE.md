@@ -147,7 +147,7 @@ DATA FLOW:
                                     → reactor_metrics
 
 4. EMEC Device Flow:
-   VirtualHardwareDevice → EMEC Device Repository → emec_devices (registry)
+   VirtualHardwareDevice (Python or C++ header) → EMEC Device Repository → emec_devices (registry)
                                                   → emec_device_sessions (runs)
                                                   → emec_telemetry (samples)
                                                   → emec_fault_log (trips)

@@ -19,6 +19,7 @@ The physics core is completely unmodified.
 - [HTTP/SSE Server](#httpsse-server)
 - [Command Line Interface](#command-line-interface)
 - [Database Persistence](#database-persistence)
+- [C++ Header API](#c-header-api)
 - [Testing](#testing)
 
 ## Architecture
@@ -238,12 +239,45 @@ device = VirtualHardwareDevice(repository=repo)
 - Persistence failures never break device operation (fail-safe no-op).
 - Query runs via the `v_emec_device_sessions` view.
 
+## C++ Header API
+
+The same device is available as a header-only C++17 port. Physics, bond-graph,
+and neurological headers mirror the Python core; the device headers mirror
+`emec/device/*.py`. Names stay hardware-direct (`VOLTAGE_SETPOINT`,
+`LOAD_TORQUE_SETPOINT`, `set_voltage_supply`, `set_load_torque`, Park, R/C/I,
+TF/GY). No extra libraries: the server is POSIX sockets, JSON is a small
+writer, and Neon persistence is an optional `libpq` hook (`EMEC_HAS_LIBPQ`).
+
+```bash
+g++ -std=c++17 -Wall -Wextra -pthread -I. -DEMEC_TEST_DEVICE_MAIN \
+    -x c++ emec/test_device.hpp -o /tmp/test_device && /tmp/test_device
+make test          # core + bond graph + device
+make examples      # emec/examples_device.hpp
+```
+
+```cpp
+#include "emec/device/device.hpp"
+
+emec::VirtualHardwareDevice device;
+device.power_on();
+device.write_register("VOLTAGE_SETPOINT", 400.0);
+device.write_register("LOAD_TORQUE_SETPOINT", 10.0);
+device.start();
+device.run(0.05);
+double rpm = std::get<double>(device.read_register("SPEED_RPM"));
+```
+
+Headers: `emec/virtual_engine.hpp`, `emec/bond_graph.hpp`,
+`emec/neurological_analogy.hpp`, `emec/device/{registers,faults,telemetry,device,server,cli}.hpp`,
+`db/scripts/emec_device_repository.hpp`.
+
 ## Testing
 
 ```bash
 python -m emec.test_device    # 17 device tests
 python -m emec.test_emec      # 8 core physics tests (unmodified)
 python -m emec.test_bond_graph  # 18 bond graph / neurological tests
+make test                     # same three suites, C++ headers
 ```
 
 The device suite covers lifecycle transitions, register validation, fault

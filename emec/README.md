@@ -388,13 +388,17 @@ python -m emec.test_device
 
 # All tests
 python -m emec.test_emec && python -m emec.test_bond_graph && python -m emec.test_device
+
+# C++17 header port (same three suites)
+make -C .. test
 ```
 
 **Test Coverage:**
 - 8 original EMEC tests (EM field, winding, rotor, stator, engine)
 - 18 bond graph and neurological tests
 - 17 virtual hardware device tests (lifecycle, registers, faults, telemetry, server, CLI, repository)
-- **39 total tests, all passing**
+- Matching C++ header suites (`emec/test_emec.hpp`, `emec/test_bond_graph.hpp`, `emec/test_device.hpp`)
+- **39 total tests, all passing** (Python and C++)
 
 Tests cover:
 - EM field solver accuracy

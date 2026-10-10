@@ -1162,6 +1162,26 @@ flowchart TB
 - **Interface isolation:** the HTTP server binds localhost by default;
   exposing it on a network is an explicit operator choice.
 
+### 7.4 C++ Header Port
+
+The v2.1 device contract is also expressed as C++17 headers so a host can
+link the virtual drive without a Python runtime. The Python physics modules
+are not modified; the C++ files are a parallel implementation of the same
+equations and the same register/lifecycle surface.
+
+| Python | C++ header |
+| --- | --- |
+| `emec/virtual_engine.py` | `emec/virtual_engine.hpp` |
+| `emec/bond_graph.py`, `em_bond_graph_mapping.py` | `emec/bond_graph.hpp`, `emec/em_bond_graph_mapping.hpp` |
+| `emec/neurological_analogy.py` | `emec/neurological_analogy.hpp` |
+| `emec/device/*.py` | `emec/device/*.hpp` |
+| `db/scripts/emec_device_repository.py` | `db/scripts/emec_device_repository.hpp` |
+
+Setpoints still rebind `set_voltage_supply` and `set_load_torque`. Faults
+latch. Persistence remains optional and fail-safe: `create_repository_from_env()`
+returns null unless `NEON_DATABASE_URL` is set and a connection can be opened.
+The HTTP/WebSocket server binds `127.0.0.1` unless `allow_remote` is set.
+
 ---
 
 ## Document Control
