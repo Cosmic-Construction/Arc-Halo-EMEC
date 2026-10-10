@@ -24,6 +24,7 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo EMEC** sys
 - **Protection Faults**: Latching over-current, over-torque, over-speed, and efficiency-anomaly trips
 - **Telemetry Streaming**: Ring-buffer recorder with CSV export, REST + WebSocket/SSE server, and CLI
 - **Database Persistence**: Optional storage of device sessions, telemetry, and faults in Neon
+- **C++17 headers**: Parallel header-only port of the engine, bond graph, and device (`make test`)
 
 ### Schema Components
 
@@ -40,6 +41,7 @@ Integrate your application with the Arc-Halo platform. The **Arc-Halo EMEC** sys
 - PostgreSQL client (psql) - for database features
 - Python 3.8+ (for utilities and EMEC simulator)
 - NumPy (for EMEC module)
+- g++ with C++17 (optional, for the header-only device port)
 - Neon database account ([sign up here](https://neon.tech)) - optional, for database features
 
 ### Setup

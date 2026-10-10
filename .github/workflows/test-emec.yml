@@ -6,12 +6,17 @@ on:
       - main
     paths:
       - 'emec/**'
+      - 'db/scripts/**'
+      - 'Makefile'
       - '.github/workflows/test-emec.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'emec/**'
+      - 'db/scripts/**'
+      - 'Makefile'
+      - '.github/workflows/test-emec.yml'
   workflow_dispatch:
 
 # Restrict default permissions for security
@@ -47,3 +52,6 @@ jobs:
 
       - name: Run virtual hardware device tests
         run: python -m emec.test_device
+
+      - name: Run C++ header suites
+        run: make test
