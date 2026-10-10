@@ -203,6 +203,99 @@ def test_fault_reset():
     return True
 
 
+def test_efficiency_anomaly():
+    """Test efficiency-anomaly trip and reuse of engine current/torque limits"""
+    print("Testing Efficiency Anomaly...")
+
+    from emec.virtual_engine import CURRENT_LIMIT_AMPS, TORQUE_LIMIT_NM
+
+    limits = ProtectionLimits()
+    assert limits.current_limit_a == CURRENT_LIMIT_AMPS
+    assert limits.torque_limit_nm == TORQUE_LIMIT_NM
+
+    fm = FaultManager()
+    healthy = fm.check_protections(
+        [1.0, -0.5, -0.5], 5.0, 100.0, 1500.0, 0.1,
+        efficiency=0.08, power_electrical=50000.0, power_mechanical=40.0,
+    )
+    assert healthy is None, "Startup efficiency must not false-trip"
+
+    over_unity = fm.check_protections(
+        [1.0], 1.0, 100.0, 1500.0, 0.2,
+        efficiency=150.0, power_electrical=100.0, power_mechanical=200.0,
+    )
+    assert over_unity is not None and over_unity.code == FaultCode.EFFICIENCY_ANOMALY
+
+    fm_nan = FaultManager()
+    non_finite = fm_nan.check_protections(
+        [1.0], 1.0, 10.0, 1500.0, 0.0, efficiency=float('nan'),
+    )
+    assert non_finite.code == FaultCode.EFFICIENCY_ANOMALY
+
+    device = VirtualHardwareDevice()
+    device.power_on()
+    device.start()
+
+    class _Stator:
+        current = [1.0, 1.0, 1.0]
+
+    class _Rotor:
+        speed_rpm = 100.0
+
+    class _State:
+        time = 0.01
+        torque = 1.0
+        power_mechanical = 500.0
+        power_electrical = 100.0
+        efficiency = 500.0
+        stator = _Stator()
+        rotor = _Rotor()
+
+    device.engine.step = lambda dt=None: _State()
+    device.run_cycle(1e-4)
+    assert device.state == DeviceState.FAULT
+    assert device.read_register(Register.FAULT_CODE) == int(FaultCode.EFFICIENCY_ANOMALY)
+    assert device.reset_faults() is False, "Over-unity condition must block clear"
+
+    print("  ✓ Efficiency Anomaly tests passed")
+    return True
+
+
+def test_running_setpoint_interlock():
+    """RUNNING must reject setpoints that would trip protections"""
+    print("Testing RUNNING Setpoint Interlock...")
+
+    device = VirtualHardwareDevice()
+    device.power_on()
+    device.write_register(Register.LOAD_TORQUE_SETPOINT, 10.0)
+    device.start()
+
+    try:
+        device.write_register(Register.LOAD_TORQUE_SETPOINT, 200.0)
+        raise AssertionError("Over-torque setpoint must be inhibited while RUNNING")
+    except InvalidStateError:
+        pass
+    assert device.read_register(Register.LOAD_TORQUE_SETPOINT) == 10.0
+
+    device.write_register(Register.LOAD_TORQUE_SETPOINT, 20.0)
+    assert device.read_register(Register.LOAD_TORQUE_SETPOINT) == 20.0
+
+    try:
+        device.write_register(Register.FREQUENCY_SETPOINT, 80.0)
+        raise AssertionError("Over-speed frequency must be inhibited while RUNNING")
+    except InvalidStateError:
+        pass
+    assert device.read_register(Register.FREQUENCY_SETPOINT) == device.params.stator_electrical.rated_frequency
+
+    device.stop()
+    device.write_register(Register.LOAD_TORQUE_SETPOINT, 200.0)
+    assert device.read_register(Register.LOAD_TORQUE_SETPOINT) == 200.0, \
+        "READY must still allow preloading a trip setpoint"
+
+    print("  ✓ RUNNING Setpoint Interlock tests passed")
+    return True
+
+
 def test_estop():
     """Test unconditional emergency stop"""
     print("Testing Emergency Stop...")
@@ -219,9 +312,10 @@ def test_estop():
     status = device.read_register(Register.STATUS_WORD)
     assert status & 0x8, "Status word estop bit not set"
 
-    # Recovery path: power_on from ESTOP returns to READY
+    # Recovery path: power_on from ESTOP returns to READY and clears the latch
     device.power_on()
     assert device.state == DeviceState.READY
+    assert device.read_register(Register.FAULT_CODE) == int(FaultCode.NONE)
 
     # e_stop while OFF is a no-op
     device2 = VirtualHardwareDevice()
@@ -369,6 +463,8 @@ def test_server_endpoints():
         assert status == 200
         status, body = post('/command/start')
         assert body['state'] == 'RUNNING'
+        status, body = post('/registers/LOAD_TORQUE_SETPOINT', {'value': 200.0})
+        assert status == 400, "RUNNING must reject an over-torque setpoint"
         device.run(0.02)
         status, body = post('/command/stop')
         assert body['state'] == 'READY'
@@ -424,6 +520,13 @@ def test_cli_commands():
     assert cli.dispatch("state")
     assert cli.dispatch("stop")
     assert cli.device.state == DeviceState.READY
+
+    assert cli.dispatch("inject_fault EFFICIENCY_ANOMALY")
+    assert cli.device.state == DeviceState.FAULT
+    assert cli.device.read_register(Register.FAULT_CODE) == int(FaultCode.EFFICIENCY_ANOMALY)
+    assert cli.dispatch("reset_faults")
+    assert cli.device.state == DeviceState.READY
+    assert cli.dispatch("inject_fault NOT_A_FAULT")  # reported, does not crash
 
     # Error handling: bad commands don't crash the loop
     assert cli.dispatch("set NOT_A_REGISTER 1")
@@ -504,6 +607,22 @@ def test_device_repository_integration():
     args = repo.end_session.call_args[0]
     assert args[0] == 'sess-1'
     assert isinstance(args[1], dict) and isinstance(args[2], list)
+    assert 'duration_s' in args[1]
+    assert repo.end_session.call_args.kwargs['status'] == 'stopped'
+
+    # A protection trip closes the session as faulted and stores sim_time
+    repo3 = mock.MagicMock()
+    repo3.start_session.return_value = 'sess-fault'
+    device3 = VirtualHardwareDevice(repository=repo3, telemetry_decimation=10)
+    device3.power_on()
+    device3.start()
+    device3.inject_fault(FaultCode.OVER_CURRENT, "injected over-current")
+    repo3.record_fault.assert_called_once()
+    fault_args = repo3.record_fault.call_args
+    assert fault_args.args[0] == 'sess-fault'
+    assert fault_args.args[1] == int(FaultCode.OVER_CURRENT)
+    assert fault_args.kwargs['sim_time'] == device3.engine.current_time
+    assert repo3.end_session.call_args.kwargs['status'] == 'faulted'
 
     # Repository errors never break the device
     repo2 = mock.MagicMock()
@@ -519,6 +638,105 @@ def test_device_repository_integration():
     return True
 
 
+def test_repository_autowire():
+    """Persistence attaches only when NEON_DATABASE_URL is set, and never raises"""
+    print("Testing Repository Autowire...")
+
+    os.environ.pop('NEON_DATABASE_URL', None)
+    device = VirtualHardwareDevice()
+    assert device.repository is None
+
+    explicit = object()
+    with mock.patch.dict(os.environ, {'NEON_DATABASE_URL': 'postgresql://example.invalid/db'}):
+        device = VirtualHardwareDevice(repository=explicit)
+        assert device.repository is explicit
+
+        with mock.patch(
+            'db.scripts.emec_device_repository.create_repository_from_env',
+            return_value='sink',
+        ) as factory:
+            device = VirtualHardwareDevice()
+            assert device.repository == 'sink'
+            factory.assert_called_once()
+
+        with mock.patch(
+            'db.scripts.emec_device_repository.create_repository_from_env',
+            side_effect=RuntimeError('db down'),
+        ):
+            device = VirtualHardwareDevice()
+            assert device.repository is None
+            assert device.state == DeviceState.OFF
+
+    print("  ✓ Repository Autowire tests passed")
+    return True
+
+
+def test_websocket_stream():
+    """WS /stream upgrades and pushes one telemetry text frame"""
+    print("Testing WebSocket Stream...")
+
+    import socket
+    import base64
+    import struct
+
+    from emec.device.server import serve
+
+    device = VirtualHardwareDevice()
+    device.power_on()
+    server, _thread = serve(device, host='127.0.0.1', port=0, background=True)
+    port = server.server_address[1]
+    key = base64.b64encode(b'arc-halo-emec-ws!!').decode('ascii')
+
+    try:
+        sock = socket.create_connection(('127.0.0.1', port), timeout=2.0)
+        request = (
+            f"GET /stream?rate_hz=50 HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n"
+            f"\r\n"
+        )
+        sock.sendall(request.encode('ascii'))
+        sock.settimeout(2.0)
+        buffer = b''
+        while b'\r\n\r\n' not in buffer:
+            chunk = sock.recv(4096)
+            assert chunk, "WebSocket handshake closed early"
+            buffer += chunk
+        header, rest = buffer.split(b'\r\n\r\n', 1)
+        status_line = header.split(b'\r\n', 1)[0].decode('ascii')
+        assert '101' in status_line, f"Expected 101 Switching Protocols, got {status_line}"
+        assert b'Sec-WebSocket-Accept' in header
+
+        frame = rest
+        while len(frame) < 2:
+            frame += sock.recv(4096)
+        length = frame[1] & 0x7F
+        offset = 2
+        if length == 126:
+            while len(frame) < 4:
+                frame += sock.recv(4096)
+            length = struct.unpack('!H', frame[2:4])[0]
+            offset = 4
+        while len(frame) < offset + length:
+            frame += sock.recv(4096)
+        payload = json.loads(frame[offset:offset + length].decode('utf-8'))
+        assert payload['state'] == 'READY'
+        assert 'fault_code' in payload
+        sock.close()
+        # Let the handler observe the disconnect before shutdown.
+        import time
+        time.sleep(0.15)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    print("  ✓ WebSocket Stream tests passed")
+    return True
+
+
 def run_all_tests():
     """Run all device tests"""
     print("\n" + "=" * 70)
@@ -531,6 +749,8 @@ def run_all_tests():
         test_control_word,
         test_fault_trip_and_latch,
         test_fault_reset,
+        test_efficiency_anomaly,
+        test_running_setpoint_interlock,
         test_estop,
         test_setpoint_binding,
         test_telemetry_recorder,
@@ -539,6 +759,8 @@ def run_all_tests():
         test_cli_commands,
         test_repository_with_mock,
         test_device_repository_integration,
+        test_repository_autowire,
+        test_websocket_stream,
     ]
 
     passed = 0

@@ -203,6 +203,16 @@ class EMECDeviceRepository:
         return self.db.execute_query(query, (session_id,))
 
 
+def _with_connect_timeout(connection_string: str, seconds: int = 5) -> str:
+    """Bound connection setup so a bad URL cannot hang the device."""
+    if 'connect_timeout=' in connection_string:
+        return connection_string
+    if '://' in connection_string:
+        separator = '&' if '?' in connection_string else '?'
+        return f"{connection_string}{separator}connect_timeout={seconds}"
+    return f"{connection_string} connect_timeout={seconds}"
+
+
 def create_repository_from_env(device_name: str = "emec-virtual-device-0",
                                ) -> Optional[EMECDeviceRepository]:
     """
@@ -210,7 +220,8 @@ def create_repository_from_env(device_name: str = "emec-virtual-device-0",
 
     Returns None when the database stack is unavailable (psycopg2 missing
     or no connection string configured) so the device layer degrades
-    gracefully to in-memory-only operation.
+    gracefully to in-memory-only operation. Connection setup is capped so a
+    unreachable host does not block device construction.
     """
     connection_string = os.getenv('NEON_DATABASE_URL')
     if not connection_string:
@@ -224,5 +235,6 @@ def create_repository_from_env(device_name: str = "emec-virtual-device-0",
             logger.warning("psycopg2/db_utils unavailable; device persistence disabled")
             return None
     return EMECDeviceRepository(
-        NeonDBConnection(connection_string), device_name=device_name
+        NeonDBConnection(_with_connect_timeout(connection_string)),
+        device_name=device_name,
     )

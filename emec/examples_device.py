@@ -21,6 +21,7 @@ from emec.device import (
     DeviceState,
     Register,
     FaultCode,
+    InvalidStateError,
 )
 
 
@@ -75,7 +76,14 @@ def example_fault_trip_recovery():
 
     device = VirtualHardwareDevice()
     device.power_on()
-    # Load far beyond the over-torque limit (100 N·m)
+    device.start()
+    try:
+        device.write_register("LOAD_TORQUE_SETPOINT", 200.0)
+        print("  ERROR: overload setpoint should be inhibited while RUNNING")
+    except InvalidStateError as exc:
+        print(f"  RUNNING interlock: {exc}")
+    device.stop()
+    # Load far beyond the over-torque limit (100 N·m) while READY, then start
     device.write_register("LOAD_TORQUE_SETPOINT", 200.0)
     device.start()
     device.run(1.0)

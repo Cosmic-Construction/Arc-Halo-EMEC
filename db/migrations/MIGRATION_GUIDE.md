@@ -13,6 +13,7 @@ We use a numbered schema file approach where each major component is in its own 
 - `03_training_state.sql` - Training state
 - `04_inference_cache.sql` - Inference and caching
 - `05_cognitive_fusion.sql` - Cognitive fusion reactor
+- `06_emec_device.sql` - EMEC virtual hardware device registry, sessions, telemetry, fault log
 
 ## Creating a New Migration
 
@@ -24,6 +25,7 @@ Identify which component your changes belong to:
 - Training changes → `03_training_state.sql`
 - Inference changes → `04_inference_cache.sql`
 - Reactor changes → `05_cognitive_fusion.sql`
+- EMEC virtual device changes → `06_emec_device.sql`
 
 ### Step 2: Create Migration File
 

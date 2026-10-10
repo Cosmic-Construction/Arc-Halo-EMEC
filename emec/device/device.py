@@ -7,6 +7,7 @@ power on, write setpoints (voltage, frequency, load torque), run, read
 telemetry, and handle latching faults. The physics core is unmodified.
 """
 
+import os
 from enum import Enum
 from typing import Optional, Union
 
@@ -27,6 +28,22 @@ STATUS_BIT_POWERED = 0x1
 STATUS_BIT_RUNNING = 0x2
 STATUS_BIT_FAULT = 0x4
 STATUS_BIT_ESTOP = 0x8
+
+
+def _repository_from_env():
+    """
+    Build the optional persistence sink from NEON_DATABASE_URL.
+
+    Returns None when the variable is unset, the database stack is missing,
+    or the connection fails. Device construction must never depend on the DB.
+    """
+    if not os.getenv('NEON_DATABASE_URL'):
+        return None
+    try:
+        from db.scripts.emec_device_repository import create_repository_from_env
+        return create_repository_from_env()
+    except Exception:
+        return None
 
 
 class DeviceState(Enum):
@@ -70,8 +87,10 @@ class VirtualHardwareDevice:
         limits: Protection limits (defaults if None)
         telemetry_capacity: Telemetry ring buffer capacity
         telemetry_decimation: Record every Nth cycle
-        repository: Optional persistence sink (e.g. EMECDeviceRepository);
-                    when set, sessions/telemetry/faults are stored on stop.
+        repository: Optional persistence sink (e.g. EMECDeviceRepository).
+                    None auto-attaches a sink when NEON_DATABASE_URL is set
+                    and leaves persistence disabled otherwise. Failures to
+                    connect never prevent the device from starting.
     """
 
     def __init__(self,
@@ -87,7 +106,7 @@ class VirtualHardwareDevice:
             capacity=telemetry_capacity,
             decimation=telemetry_decimation,
         )
-        self.repository = repository
+        self.repository = repository if repository is not None else _repository_from_env()
 
         self.state = DeviceState.OFF
         self._control_word = 0
@@ -105,6 +124,7 @@ class VirtualHardwareDevice:
 
         # Persistence bookkeeping
         self._session_id = None
+        self._session_start_time = 0.0
         self._fault_counts = {code: 0 for code in FaultCode if code != FaultCode.NONE}
 
     # ------------------------------------------------------------------
@@ -114,6 +134,10 @@ class VirtualHardwareDevice:
     def power_on(self) -> DeviceState:
         """Energize the device. From OFF or ESTOP, enters READY."""
         if self.state in (DeviceState.OFF, DeviceState.ESTOP):
+            if self.state == DeviceState.ESTOP:
+                # power_on is the documented ESTOP recovery; drop the latch
+                # so READY does not carry a fault (FAULT ⇔ faults ≠ ∅).
+                self.faults.clear(condition_active=False)
             self.state = DeviceState.READY
             self._apply_setpoints()
         return self.state
@@ -149,13 +173,38 @@ class VirtualHardwareDevice:
     def e_stop(self) -> DeviceState:
         """Unconditional emergency stop from any powered state."""
         if self.state != DeviceState.OFF:
-            if self.state == DeviceState.RUNNING:
-                self._end_session()
-            self.faults.trip(
+            fault = self.faults.trip(
                 FaultCode.ESTOP, "Emergency stop engaged",
                 self.engine.current_time,
             )
+            if self.state == DeviceState.RUNNING:
+                self._record_fault(fault)
+                self._end_session(status='faulted')
             self.state = DeviceState.ESTOP
+        return self.state
+
+    def inject_fault(self, code: FaultCode, message: Optional[str] = None) -> DeviceState:
+        """
+        Latch a fault and enter FAULT without waiting for a protection trip.
+
+        Used by the CLI/demo to inject a fault and then clear it. The fault
+        still cannot be cleared while the matching trip condition is present.
+        """
+        if self.state == DeviceState.OFF:
+            raise InvalidStateError("Cannot inject a fault while the device is OFF")
+        if code == FaultCode.NONE:
+            raise InvalidStateError("Cannot inject FaultCode.NONE")
+        fault = self.faults.trip(
+            code,
+            message or f"Injected fault: {code.name}",
+            self.engine.current_time,
+        )
+        if self.state == DeviceState.RUNNING:
+            self._fault_counts[code] = self._fault_counts.get(code, 0) + 1
+            self._record_fault(fault)
+            self._end_session(status='faulted')
+        if self.state != DeviceState.ESTOP:
+            self.state = DeviceState.FAULT
         return self.state
 
     def reset_faults(self) -> bool:
@@ -205,6 +254,9 @@ class VirtualHardwareDevice:
             raise RegisterAccessError(f"Register {register.name} is read-only")
 
         value = self._validate_value(register, value)
+        inhibited = self._setpoint_would_trip(register, value)
+        if inhibited is not None:
+            raise InvalidStateError(inhibited)
 
         if register == Register.CONTROL_WORD:
             self._control_word = int(value)
@@ -307,12 +359,15 @@ class VirtualHardwareDevice:
             speed_rpm=state.rotor.speed_rpm,
             rated_speed_rpm=self.params.rotor_mechanical.rated_speed,
             time=state.time,
+            efficiency=state.efficiency,
+            power_electrical=state.power_electrical,
+            power_mechanical=state.power_mechanical,
         )
         if fault is not None and fault.code not in (FaultCode.NONE,):
-            self._fault_counts[fault.code] += 1
+            self._fault_counts[fault.code] = self._fault_counts.get(fault.code, 0) + 1
             self.state = DeviceState.FAULT
             self._record_fault(fault)
-            self._end_session()
+            self._end_session(status='faulted')
             return state
 
         self.telemetry.record(self._sample_from_state(state))
@@ -376,7 +431,42 @@ class VirtualHardwareDevice:
         speed_limit = limits.overspeed_factor * self.params.rotor_mechanical.rated_speed
         if abs(rotor.speed_rpm) > speed_limit:
             return True
+        if self.faults.efficiency_violated(
+            self._last_efficiency, self._last_power_elec, self._last_power_mech
+        ):
+            return True
         return False
+
+    def _setpoint_would_trip(self, register: Register, value: float) -> Optional[str]:
+        """
+        While RUNNING, reject setpoint writes that command a protection trip.
+
+        Load torque above the torque limit, and a supply frequency whose
+        synchronous speed exceeds the over-speed limit, are inhibited.
+        Preloading those setpoints while READY (before start) is allowed so
+        a host can arm a trip for test.
+        """
+        if self.state != DeviceState.RUNNING:
+            return None
+        limits = self.faults.limits
+        if register == Register.LOAD_TORQUE_SETPOINT and abs(value) > limits.torque_limit_nm:
+            return (
+                f"LOAD_TORQUE_SETPOINT {value} N·m would exceed the "
+                f"{limits.torque_limit_nm} N·m over-torque limit while RUNNING"
+            )
+        if register == Register.FREQUENCY_SETPOINT:
+            pole_pairs = self.params.rotor_mechanical.pole_pairs or 0
+            if pole_pairs <= 0:
+                return None
+            sync_rpm = 60.0 * value / pole_pairs
+            speed_limit = limits.overspeed_factor * self.params.rotor_mechanical.rated_speed
+            if abs(sync_rpm) > speed_limit:
+                return (
+                    f"FREQUENCY_SETPOINT {value} Hz implies synchronous speed "
+                    f"{sync_rpm:.0f} rpm, above the {speed_limit:.0f} rpm "
+                    f"over-speed limit while RUNNING"
+                )
+        return None
 
     def _apply_setpoints(self):
         """Push current setpoints into the engine callables"""
@@ -447,16 +537,18 @@ class VirtualHardwareDevice:
                 'load_torque_setpoint': self._load_torque_setpoint,
             }
             self._session_id = self.repository.start_session(setpoints)
+            self._session_start_time = self.engine.current_time
         except Exception:
             self._session_id = None  # Persistence must never break the device
 
-    def _end_session(self):
+    def _end_session(self, status: str = 'stopped'):
         if self.repository is None or self._session_id is None:
             return
         try:
-            metrics = self.engine.get_performance_metrics()
+            metrics = dict(self.engine.get_performance_metrics())
+            metrics['duration_s'] = self.engine.current_time - self._session_start_time
             samples = self.telemetry.snapshot()
-            self.repository.end_session(self._session_id, metrics, samples)
+            self.repository.end_session(self._session_id, metrics, samples, status=status)
         except Exception:
             pass  # Persistence must never break the device
         finally:
@@ -467,7 +559,8 @@ class VirtualHardwareDevice:
             return
         try:
             self.repository.record_fault(
-                self._session_id, int(fault.code), fault.message
+                self._session_id, int(fault.code), fault.message,
+                sim_time=fault.time,
             )
         except Exception:
             pass  # Persistence must never break the device

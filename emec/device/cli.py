@@ -18,6 +18,7 @@ from .device import (
     RegisterValueError,
     InvalidStateError,
 )
+from .faults import FaultCode
 from .registers import Register
 
 
@@ -27,6 +28,7 @@ Commands:
   start | stop                Start / stop the drive
   estop                       Emergency stop (unconditional)
   reset_faults                Clear latched faults (when condition cleared)
+  inject_fault <CODE>         Latch a fault (e.g. EFFICIENCY_ANOMALY) for test
   reset                       Full device reset
   set <REGISTER> <value>      Write setpoint (e.g. set LOAD_TORQUE_SETPOINT 10)
   get <REGISTER>              Read a register (e.g. get SPEED_RPM)
@@ -69,6 +71,10 @@ class DeviceCLI:
     def cmd_reset_faults(self):
         cleared = self.device.reset_faults()
         print(f"faults cleared: {cleared}; state -> {self.device.state.value}")
+
+    def cmd_inject_fault(self, name: str):
+        code = FaultCode[name]
+        print(f"state -> {self.device.inject_fault(code).value}")
 
     def cmd_set(self, name: str, value: str):
         self.device.write_register(name, float(value))
@@ -136,6 +142,8 @@ class DeviceCLI:
                 self.cmd_reset()
             elif cmd == 'reset_faults':
                 self.cmd_reset_faults()
+            elif cmd == 'inject_fault' and len(args) == 1:
+                self.cmd_inject_fault(args[0].upper())
             elif cmd == 'set' and len(args) == 2:
                 self.cmd_set(args[0].upper(), args[1])
             elif cmd == 'get' and len(args) == 1:
@@ -153,7 +161,7 @@ class DeviceCLI:
             else:
                 print(f"Unknown or malformed command: {line!r} (try 'help')")
         except (RegisterAccessError, RegisterValueError, InvalidStateError,
-                ValueError) as e:
+                ValueError, KeyError) as e:
             print(f"Error: {e}")
         return True
 
@@ -171,7 +179,7 @@ class DeviceCLI:
 
 
 def run_demo(cli: DeviceCLI):
-    """Scripted demo: power on, load, run, read telemetry, estop"""
+    """Scripted demo: power on, load, run, telemetry, inject fault, clear, estop"""
     script = [
         "power_on",
         "set LOAD_TORQUE_SETPOINT 10",
@@ -182,9 +190,11 @@ def run_demo(cli: DeviceCLI):
         "get TORQUE",
         "get EFFICIENCY",
         "telemetry 3",
-        "stop",
-        "estop",
+        "inject_fault EFFICIENCY_ANOMALY",
         "faults",
+        "reset_faults",
+        "state",
+        "estop",
         "power_on",
         "state",
     ]

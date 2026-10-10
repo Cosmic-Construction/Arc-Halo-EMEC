@@ -83,6 +83,9 @@ psql "$NEON_DATABASE_URL" -f "$DB_DIR/schema/04_inference_cache.sql"
 echo "Applying 05_cognitive_fusion.sql..."
 psql "$NEON_DATABASE_URL" -f "$DB_DIR/schema/05_cognitive_fusion.sql"
 
+echo "Applying 06_emec_device.sql..."
+psql "$NEON_DATABASE_URL" -f "$DB_DIR/schema/06_emec_device.sql"
+
 echo -e "${GREEN}✓ Schema deployment complete${NC}"
 echo ""
 
